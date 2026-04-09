@@ -12,7 +12,7 @@ if "motivos" not in st.session_state:
         "Danificado",
         "Endereço incompleto",
         "Fora de rota",
-        "Desconhecido"
+        "Desconhecido",
         "Outro"
     ]
 
