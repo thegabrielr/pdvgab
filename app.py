@@ -83,7 +83,7 @@ with tab1:
                 
                 with col_ed1:
                     new_cli = st.text_input("Cliente", value=item["Nome do Cliente"], key=f"cli_{i}")
-                    new_end = st.text_area("Endereço", value=item["CARD/NORMAL"], key=f"end_{i}")
+                    new_end = st.text_area("Endereço", value=item["ENDERECO"], key=f"end_{i}")
                 
                 with col_ed2:
                     new_mot = st.selectbox("Motivo", [""] + st.session_state.motivos, 
