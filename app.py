@@ -53,7 +53,7 @@ with tab1:
         c1, c2, c3 = st.columns([1, 2, 3])
         with c1: awb = st.text_input("AWB")
         with c2: cliente = st.text_input("Cliente")
-        with c3: endereco = st.text_input("Endereço")
+        with c3: endereco = st.text_input("CARD/NORMAL")
         
         motivo = st.selectbox("Motivo (opcional)", [""] + st.session_state.motivos)
         submit = st.form_submit_button("➕ Adicionar à Lista")
@@ -127,7 +127,7 @@ with tab1:
                 w = [35, 50, 70, 35] # Larguras das colunas
                 pdf.cell(w[0], 7, "AWB", 1, 0, "C", True)
                 pdf.cell(w[1], 7, "CLIENTE", 1, 0, "C", True)
-                pdf.cell(w[2], 7, "ENDEREÇO", 1, 0, "C", True)
+                pdf.cell(w[2], 7, "CARD/NORMAL", 1, 0, "C", True)
                 pdf.cell(w[3], 7, "MOTIVO", 1, 1, "C", True)
 
                 # Corpo da Tabela
