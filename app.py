@@ -100,7 +100,7 @@ with tab1:
             pdf.cell(w_awb, 8, "AWB", 1, 0, "C", True)
             pdf.cell(w_tipo, 8, "TIPO", 1, 0, "C", True)
             pdf.cell(w_cli, 8, "CLIENTE", 1, 0, "C", True)
-            pdf.cell(w_end, 8, "ENDEREÇO", 1, 0, "C", True)
+            pdf.cell(w_end, 8, "Endereço", 1, 0, "C", True)
             pdf.cell(w_mot, 8, "MOTIVO", 1, 1, "C", True)
 
             pdf.set_font("Arial", "", 8)
