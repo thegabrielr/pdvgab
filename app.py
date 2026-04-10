@@ -35,7 +35,7 @@ with tab1:
         with c3:
             endereco = st.text_input("Endereço")
         with c4:
-            tipo = st.selectbox("Tipo", ["CARD", "PCT"]) # <--- AJUSTE AQUI
+            tipo = st.selectbox("Tipo", ["CARD", "PCT"])
 
         motivo = st.selectbox("Motivo (opcional)", [""] + st.session_state.motivos)
         submit = st.form_submit_button("➕ Adicionar")
@@ -46,82 +46,76 @@ with tab1:
                 "Nome do Cliente": cliente.strip(),
                 "Endereço": endereco.strip(),
                 "Motivo": motivo.strip(),
-                "Tipo": tipo # <--- SALVANDO O TIPO
+                "Tipo": tipo
             })
             st.rerun()
 
+    # --- LISTAGEM DE ITENS (DENTRO DA ABA 1) ---
     st.subheader(f"Itens ({len(st.session_state.itens)})")
 
     if not st.session_state.itens:
-        st.info("Nenhum item na lista.")
+        st.info("Nenhum item adicionado.")
     else:
         for i, item in enumerate(st.session_state.itens):
-            with st.expander(f"[{item['Tipo']}] {item['AWB']} - {item.get('Nome do Cliente','')}"):
-                col_e1, col_e2 = st.columns([3, 1])
-                item["Nome do Cliente"] = col_e1.text_input("Cliente", value=item.get("Nome do Cliente",""), key=f"cli_{i}")
-                item["Tipo"] = col_e2.selectbox("Tipo", ["CARD", "PCT"], index=0 if item["Tipo"]=="CARD" else 1, key=f"tp_{i}")
+            with st.expander(f"📦 {item.get('Tipo', 'PCT')} | {item.get('AWB', 'S/N')} - {item.get('Nome do Cliente','')}"):
                 
-                item["Endereço"] = st.text_area("Endereço", value=item.get("Endereço",""), key=f"end_{i}")
-                item["Motivo"] = st.selectbox("Motivo", [""] + st.session_state.motivos, 
-                                            index=(st.session_state.motivos.index(item["Motivo"]) + 1) if item["Motivo"] in st.session_state.motivos else 0, 
-                                            key=f"mot_{i}")
+                # Campo para editar o AWB
+                item["AWB"] = st.text_input("AWB", value=item.get("AWB", ""), key=f"awb_edit_{i}")
 
-                if st.button("Remover", key=f"del_{i}"):
+                col_e1, col_e2 = st.columns([3, 1])
+                with col_e1:
+                    item["Nome do Cliente"] = st.text_input("Cliente", value=item.get("Nome do Cliente",""), key=f"cli_{i}")
+                with col_e2:
+                    opcoes_tipo = ["CARD", "PCT"]
+                    t_idx = opcoes_tipo.index(item["Tipo"]) if item["Tipo"] in opcoes_tipo else 1
+                    item["Tipo"] = st.selectbox("Tipo", opcoes_tipo, index=t_idx, key=f"tp_{i}")
+
+                item["Endereço"] = st.text_area("Endereço", value=item.get("Endereço",""), key=f"end_{i}")
+
+                m_lista = [""] + st.session_state.motivos
+                m_idx = m_lista.index(item["Motivo"]) if item["Motivo"] in m_lista else 0
+                item["Motivo"] = st.selectbox("Motivo", m_lista, index=m_idx, key=f"mot_{i}")
+
+                if st.button("Remover Item", key=f"del_{i}"):
                     st.session_state.itens.pop(i)
                     st.rerun()
 
-    if st.button("Limpar lista"):
-        st.session_state.itens = []
-        st.rerun()
-
-    # ==================== GERAR PDF ATUALIZADO ====================
+    # --- BOTÃO DE PDF (DENTRO DA ABA 1) ---
     if st.session_state.itens:
+        st.divider()
         if st.button("Gerar PDF"):
             pdf = FPDF("P", "mm", "A4")
             pdf.add_page()
             
-            # Título
-            pdf.set_font("Arial", "B", 14)
+            pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, "RELATÓRIO DE DEVOLUÇÕES", ln=True, align="C")
-            pdf.set_font("Arial", "", 10)
+            
+            pdf.set_font("helvetica", "", 10)
             pdf.cell(0, 6, f"Entregador: {transportadora} | Data: {data_relatorio.strftime('%d/%m/%Y')}", ln=True, align="C")
             pdf.ln(5)
 
-            # Configuração de Colunas (Total 190mm)
-            w_awb = 35
-            w_tipo = 15
-            w_cli = 45
-            w_end = 55
-            w_mot = 40
+            w_awb, w_tipo, w_cli, w_end, w_mot = 35, 15, 45, 55, 40
 
-            # Cabeçalho da Tabela
-            pdf.set_font("Arial", "B", 8)
+            pdf.set_font("helvetica", "B", 8)
             pdf.set_fill_color(200, 200, 200)
             pdf.cell(w_awb, 8, "AWB", 1, 0, "C", True)
             pdf.cell(w_tipo, 8, "TIPO", 1, 0, "C", True)
             pdf.cell(w_cli, 8, "CLIENTE", 1, 0, "C", True)
-            pdf.cell(w_end, 8, "Endereço", 1, 0, "C", True)
+            pdf.cell(w_end, 8, "ENDERECO", 1, 0, "C", True)
             pdf.cell(w_mot, 8, "MOTIVO", 1, 1, "C", True)
 
-            pdf.set_font("Arial", "", 8)
-            
+            pdf.set_font("helvetica", "", 8)
             for item in st.session_state.itens:
-                # Sanitização para evitar erro de caracteres latinos
                 txt_awb = str(item.get("AWB",""))
                 txt_tipo = str(item.get("Tipo",""))
                 txt_cli = str(item.get("Nome do Cliente","")).encode('latin-1', 'replace').decode('latin-1')
                 txt_end = str(item.get("Endereço","")).encode('latin-1', 'replace').decode('latin-1')
                 txt_mot = str(item.get("Motivo","")).encode('latin-1', 'replace').decode('latin-1')
 
-                # Calcular a altura necessária (baseado na coluna com mais texto)
-                # A altura mínima é 7
-                h = 7 
-                
-                # Início da linha
+                h = 6
                 x, y = pdf.get_x(), pdf.get_y()
                 
-                # Multi_cell para cada coluna mantendo o alinhamento
-                pdf.multi_cell(w_awb, h, txt_awb, border=1, align='C')
+                pdf.multi_cell(w_awb, h, txt_awb, border=1)
                 y_max = pdf.get_y()
                 
                 pdf.set_xy(x + w_awb, y)
@@ -140,7 +134,6 @@ with tab1:
                 pdf.multi_cell(w_mot, h, txt_mot, border=1)
                 y_max = max(y_max, pdf.get_y())
                 
-                # Pula para a próxima linha baseada na maior altura
                 pdf.set_y(y_max)
 
             pdf_output = pdf.output(dest="S").encode("latin1")
