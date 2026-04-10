@@ -1,40 +1,19 @@
 import streamlit as st
 from datetime import date
 from fpdf import FPDF
-import json
-import os
 
-# Configuração da página
-st.set_page_config(page_title="Devoluções - Histórico", layout="wide")
+st.set_page_config(page_title="Devoluções", layout="wide")
+st.title("📦 Sistema de Devoluções")
 
-# ==================== FUNÇÕES DE PERSISTÊNCIA ====================
-DB_FILE = "historico_devolucoes.json"
-
-def salvar_dados():
-    dados = {
-        "itens": st.session_state.itens,
-        "motivos": st.session_state.motivos
-    }
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=4)
-
-def carregar_dados():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
-
-# ==================== INICIALIZAÇÃO DO ESTADO ====================
-dados_salvos = carregar_dados()
-
+# ==================== ESTADO ====================
 if "motivos" not in st.session_state:
     st.session_state.motivos = ["Recusado", "Danificado", "Endereço incompleto", "Fora de rota", "Desconhecido", "Outro"]
 
 if "itens" not in st.session_state:
-    st.session_state.itens = dados_salvos["itens"] if dados_salvos else []
+    st.session_state.itens = []
 
-# ==================== TÍTULO E ABAS ====================
-st.title("📦 Sistema de Devoluções com Histórico")
+# ==================== ABAS ====================
+tab1, tab2 = st.tabs(["📋 Operação", "⚙️ Motivos"])
 
 # ==================== ABA 1 ====================
 with tab1:
@@ -45,6 +24,7 @@ with tab1:
         transportadora = st.text_input("Entregador", value="Honorio/Gabriel - Parque mambucaba")
 
     st.subheader("Adicionar item")
+
     with st.form("form_add", clear_on_submit=True):
         c1, c2, c3, c4 = st.columns([1.5, 2, 3, 1.5])
 
@@ -68,18 +48,13 @@ with tab1:
                 "Motivo": motivo.strip(),
                 "Tipo": tipo # <--- SALVANDO O TIPO
             })
-            salvar_dados() # Salva no arquivo imediatamente
             st.rerun()
 
-    st.divider()
-    
-    # Listagem de Itens
-    st.subheader(f"Itens na Lista ({len(st.session_state.itens)})")
-    
+    st.subheader(f"Itens ({len(st.session_state.itens)})")
+
     if not st.session_state.itens:
         st.info("Nenhum item na lista.")
     else:
-        # Loop de exibição e edição
         for i, item in enumerate(st.session_state.itens):
             with st.expander(f"[{item['Tipo']}] {item['AWB']} - {item.get('Nome do Cliente','')}"):
                 col_e1, col_e2 = st.columns([3, 1])
@@ -125,7 +100,7 @@ with tab1:
             pdf.cell(w_awb, 8, "AWB", 1, 0, "C", True)
             pdf.cell(w_tipo, 8, "TIPO", 1, 0, "C", True)
             pdf.cell(w_cli, 8, "CLIENTE", 1, 0, "C", True)
-            pdf.cell(w_end, 8, "Endereço", 1, 0, "C", True)
+            pdf.cell(w_end, 8, "ENDEREÇO", 1, 0, "C", True)
             pdf.cell(w_mot, 8, "MOTIVO", 1, 1, "C", True)
 
             pdf.set_font("Arial", "", 8)
@@ -178,7 +153,6 @@ with tab2:
     if st.button("Adicionar motivo"):
         if novo.strip() and novo not in st.session_state.motivos:
             st.session_state.motivos.append(novo.strip())
-            salvar_dados()
             st.rerun()
 
     for i, m in enumerate(st.session_state.motivos):
@@ -186,5 +160,4 @@ with tab2:
         c_m1.write(m)
         if c_m2.button("X", key=f"del_m_{i}"):
             st.session_state.motivos.pop(i)
-            salvar_dados()
             st.rerun()
