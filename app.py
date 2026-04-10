@@ -52,7 +52,7 @@ with tab1:
 
 st.subheader(f"Itens ({len(st.session_state.itens)})")
 
-    if not st.session_state.itens:
+if not st.session_state.itens:
         st.info("Nenhum item")
     else:
         for i, item in enumerate(st.session_state.itens):
