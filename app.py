@@ -28,9 +28,7 @@ def carregar_dados():
 dados_salvos = carregar_dados()
 
 if "motivos" not in st.session_state:
-    st.session_state.motivos = dados_salvos["motivos"] if dados_salvos else [
-        "Recusado", "Danificado", "Endereço incompleto", "Fora de rota", "Desconhecido", "Outro"
-    ]
+    st.session_state.motivos = ["Recusado", "Danificado", "Endereço incompleto", "Fora de rota", "Desconhecido", "Outro"]
 
 if "itens" not in st.session_state:
     st.session_state.itens = dados_salvos["itens"] if dados_salvos else []
@@ -38,9 +36,7 @@ if "itens" not in st.session_state:
 # ==================== TÍTULO E ABAS ====================
 st.title("📦 Sistema de Devoluções com Histórico")
 
-tab1, tab2 = st.tabs(["📋 Operação Atual", "⚙️ Configurações"])
-
-# ==================== ABA 1: OPERAÇÃO ====================
+# ==================== ABA 1 ====================
 with tab1:
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -50,20 +46,27 @@ with tab1:
 
     st.subheader("Adicionar item")
     with st.form("form_add", clear_on_submit=True):
-        c1, c2, c3 = st.columns([1, 2, 3])
-        with c1: awb = st.text_input("AWB")
-        with c2: cliente = st.text_input("Cliente")
-        with c3: endereco = st.text_input("CARD/NORMAL")
-        
+        c1, c2, c3, c4 = st.columns([1.5, 2, 3, 1.5])
+
+        with c1:
+            awb = st.text_input("AWB")
+        with c2:
+            cliente = st.text_input("Cliente")
+        with c3:
+            endereco = st.text_input("Endereço")
+        with c4:
+            tipo = st.selectbox("Tipo", ["CARD", "PCT"]) # <--- AJUSTE AQUI
+
         motivo = st.selectbox("Motivo (opcional)", [""] + st.session_state.motivos)
-        submit = st.form_submit_button("➕ Adicionar à Lista")
+        submit = st.form_submit_button("➕ Adicionar")
 
         if submit and awb.strip():
             st.session_state.itens.append({
                 "AWB": awb.strip(),
                 "Nome do Cliente": cliente.strip(),
                 "Endereço": endereco.strip(),
-                "Motivo": motivo.strip()
+                "Motivo": motivo.strip(),
+                "Tipo": tipo # <--- SALVANDO O TIPO
             })
             salvar_dados() # Salva no arquivo imediatamente
             st.rerun()
@@ -74,95 +77,103 @@ with tab1:
     st.subheader(f"Itens na Lista ({len(st.session_state.itens)})")
     
     if not st.session_state.itens:
-        st.info("A lista está vazia.")
+        st.info("Nenhum item na lista.")
     else:
         # Loop de exibição e edição
         for i, item in enumerate(st.session_state.itens):
-            with st.expander(f"📦 {item['AWB']} - {item.get('Nome do Cliente','')}"):
-                col_ed1, col_ed2 = st.columns(2)
+            with st.expander(f"[{item['Tipo']}] {item['AWB']} - {item.get('Nome do Cliente','')}"):
+                col_e1, col_e2 = st.columns([3, 1])
+                item["Nome do Cliente"] = col_e1.text_input("Cliente", value=item.get("Nome do Cliente",""), key=f"cli_{i}")
+                item["Tipo"] = col_e2.selectbox("Tipo", ["CARD", "PCT"], index=0 if item["Tipo"]=="CARD" else 1, key=f"tp_{i}")
                 
-                with col_ed1:
-                    new_cli = st.text_input("Cliente", value=item["Nome do Cliente"], key=f"cli_{i}")
-                    new_end = st.text_area("Endereço", value=item["ENDEREÇO"], key=f"end_{i}")
+                item["Endereço"] = st.text_area("Endereço", value=item.get("Endereço",""), key=f"end_{i}")
+                item["Motivo"] = st.selectbox("Motivo", [""] + st.session_state.motivos, 
+                                            index=(st.session_state.motivos.index(item["Motivo"]) + 1) if item["Motivo"] in st.session_state.motivos else 0, 
+                                            key=f"mot_{i}")
+
+                if st.button("Remover", key=f"del_{i}"):
+                    st.session_state.itens.pop(i)
+                    st.rerun()
+
+    if st.button("Limpar lista"):
+        st.session_state.itens = []
+        st.rerun()
+
+    # ==================== GERAR PDF ATUALIZADO ====================
+    if st.session_state.itens:
+        if st.button("Gerar PDF"):
+            pdf = FPDF("P", "mm", "A4")
+            pdf.add_page()
+            
+            # Título
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, "RELATÓRIO DE DEVOLUÇÕES", ln=True, align="C")
+            pdf.set_font("Arial", "", 10)
+            pdf.cell(0, 6, f"Entregador: {transportadora} | Data: {data_relatorio.strftime('%d/%m/%Y')}", ln=True, align="C")
+            pdf.ln(5)
+
+            # Configuração de Colunas (Total 190mm)
+            w_awb = 35
+            w_tipo = 15
+            w_cli = 45
+            w_end = 55
+            w_mot = 40
+
+            # Cabeçalho da Tabela
+            pdf.set_font("Arial", "B", 8)
+            pdf.set_fill_color(200, 200, 200)
+            pdf.cell(w_awb, 8, "AWB", 1, 0, "C", True)
+            pdf.cell(w_tipo, 8, "TIPO", 1, 0, "C", True)
+            pdf.cell(w_cli, 8, "CLIENTE", 1, 0, "C", True)
+            pdf.cell(w_end, 8, "Endereço", 1, 0, "C", True)
+            pdf.cell(w_mot, 8, "MOTIVO", 1, 1, "C", True)
+
+            pdf.set_font("Arial", "", 8)
+            
+            for item in st.session_state.itens:
+                # Sanitização para evitar erro de caracteres latinos
+                txt_awb = str(item.get("AWB",""))
+                txt_tipo = str(item.get("Tipo",""))
+                txt_cli = str(item.get("Nome do Cliente","")).encode('latin-1', 'replace').decode('latin-1')
+                txt_end = str(item.get("Endereço","")).encode('latin-1', 'replace').decode('latin-1')
+                txt_mot = str(item.get("Motivo","")).encode('latin-1', 'replace').decode('latin-1')
+
+                # Calcular a altura necessária (baseado na coluna com mais texto)
+                # A altura mínima é 7
+                h = 7 
                 
-                with col_ed2:
-                    new_mot = st.selectbox("Motivo", [""] + st.session_state.motivos, 
-                                         index=(st.session_state.motivos.index(item["Motivo"]) + 1) 
-                                         if item["Motivo"] in st.session_state.motivos else 0,
-                                         key=f"mot_{i}")
-                    
-                    if st.button("🗑️ Remover", key=f"del_{i}"):
-                        st.session_state.itens.pop(i)
-                        salvar_dados()
-                        st.rerun()
+                # Início da linha
+                x, y = pdf.get_x(), pdf.get_y()
                 
-                # Atualiza o estado se houver mudança
-                if new_cli != item["Nome do Cliente"] or new_end != item["Endereço"] or new_mot != item["Motivo"]:
-                    st.session_state.itens[i].update({"Nome do Cliente": new_cli, "Endereço": new_end, "Motivo": new_mot})
-                    salvar_dados()
+                # Multi_cell para cada coluna mantendo o alinhamento
+                pdf.multi_cell(w_awb, h, txt_awb, border=1, align='C')
+                y_max = pdf.get_y()
+                
+                pdf.set_xy(x + w_awb, y)
+                pdf.multi_cell(w_tipo, h, txt_tipo, border=1, align='C')
+                y_max = max(y_max, pdf.get_y())
+                
+                pdf.set_xy(x + w_awb + w_tipo, y)
+                pdf.multi_cell(w_cli, h, txt_cli, border=1)
+                y_max = max(y_max, pdf.get_y())
+                
+                pdf.set_xy(x + w_awb + w_tipo + w_cli, y)
+                pdf.multi_cell(w_end, h, txt_end, border=1)
+                y_max = max(y_max, pdf.get_y())
+                
+                pdf.set_xy(x + w_awb + w_tipo + w_cli + w_end, y)
+                pdf.multi_cell(w_mot, h, txt_mot, border=1)
+                y_max = max(y_max, pdf.get_y())
+                
+                # Pula para a próxima linha baseada na maior altura
+                pdf.set_y(y_max)
 
-        # Ações da Lista
-        col_btn1, col_btn2 = st.columns(2)
-        
-        with col_btn1:
-            if st.button("⚠️ Limpar Tudo", use_container_width=True):
-                st.session_state.itens = []
-                salvar_dados()
-                st.rerun()
+            pdf_output = pdf.output(dest="S").encode("latin1")
+            st.download_button("📥 Baixar Relatório PDF", pdf_output, "relatorio.pdf", "application/pdf")
 
-        # Geração do PDF
-        with col_btn2:
-            if st.button("📄 Gerar PDF", type="primary", use_container_width=True):
-                pdf = FPDF("P", "mm", "A4")
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 14)
-                pdf.cell(0, 8, "RELATÓRIO DE DEVOLUÇÕES", ln=True, align="C")
-                pdf.set_font("Arial", "", 10)
-                pdf.cell(0, 6, f"{transportadora} | {data_relatorio.strftime('%d/%m/%Y')}", ln=True, align="C")
-                pdf.ln(5)
-
-                # Cabeçalho da Tabela
-                pdf.set_font("Arial", "B", 9)
-                pdf.set_fill_color(220, 220, 220)
-                w = [35, 50, 70, 35] # Larguras das colunas
-                pdf.cell(w[0], 7, "AWB", 1, 0, "C", True)
-                pdf.cell(w[1], 7, "CLIENTE", 1, 0, "C", True)
-                pdf.cell(w[2], 7, "CARD/NORMAL", 1, 0, "C", True)
-                pdf.cell(w[3], 7, "MOTIVO", 1, 1, "C", True)
-
-                # Corpo da Tabela
-                pdf.set_font("Arial", "", 8)
-                for row in st.session_state.itens:
-                    # Cálculo de altura dinâmica para evitar quebra de texto
-                    x_start, y_start = pdf.get_x(), pdf.get_y()
-                    pdf.multi_cell(w[0], 6, str(row['AWB']), border=1)
-                    h = pdf.get_y() - y_start
-                    
-                    pdf.set_xy(x_start + w[0], y_start)
-                    pdf.multi_cell(w[1], 6, str(row['Nome do Cliente']), border=1)
-                    h = max(h, pdf.get_y() - y_start)
-
-                    pdf.set_xy(x_start + w[0] + w[1], y_start)
-                    pdf.multi_cell(w[2], 6, str(row['Endereço']), border=1)
-                    h = max(h, pdf.get_y() - y_start)
-
-                    pdf.set_xy(x_start + w[0] + w[1] + w[2], y_start)
-                    pdf.multi_cell(w[3], 6, str(row['Motivo']), border=1)
-                    h = max(h, pdf.get_y() - y_start)
-                    
-                    pdf.set_xy(x_start, y_start + h)
-
-                try:
-                    pdf_output = pdf.output(dest="S").encode("latin1")
-                    st.download_button("📥 Baixar Relatório", pdf_output, 
-                                     file_name=f"devolucao_{data_relatorio}.pdf", 
-                                     mime="application/pdf", use_container_width=True)
-                except Exception as e:
-                    st.error("Erro ao gerar PDF: Caracteres especiais não suportados pelo Arial padrão.")
-
-# ==================== ABA 2: MOTIVOS ====================
+# ==================== ABA 2 ====================
 with tab2:
-    st.subheader("Gerenciar Motivos de Devolução")
+    st.subheader("Gerenciar Motivos")
     novo = st.text_input("Novo motivo")
     if st.button("Adicionar motivo"):
         if novo.strip() and novo not in st.session_state.motivos:
@@ -171,7 +182,7 @@ with tab2:
             st.rerun()
 
     for i, m in enumerate(st.session_state.motivos):
-        c_m1, c_m2 = st.columns([5, 1])
+        c_m1, c_m2 = st.columns([5,1])
         c_m1.write(m)
         if c_m2.button("X", key=f"del_m_{i}"):
             st.session_state.motivos.pop(i)
